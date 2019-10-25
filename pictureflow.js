@@ -7,6 +7,8 @@ function pictureflowInstance(window, container, images) {
     this.height = 0;
     // TODO: make this border dynamic
     this.border = 5;
+    // TODO: Replace this with something fancy
+    this.imagesPerRow = 3;
     var _t = this;
     this.window.onresize = function () {
         _t._windowResized();
@@ -27,32 +29,56 @@ function pictureflowInstance(window, container, images) {
             this._doFlow();
         }
     }
-    this._doFlow = function() {
-        var cx = this.width - ((this.images.length - 1) * this.border);
-        var r = this._getRs();
+    function chunk(arr, len) {
+        var chunks = [],
+        i = 0,
+        n = arr.length;
+
+        while (i < n) {
+            chunks.push(arr.slice(i, i += len));
+        }
+
+        return chunks;
+    }
+    this._calculateY = function(images) {
+        var cx = this.width - ((images.length - 1) * this.border);
+        var r = this._getRs(images);
         var rTotal = 0;
         for (var i = 0; i < r.length; i++) {
             rTotal += r[i];
         }
 
-        var rowHeight = cx / rTotal;
-        window.pictureflow._setContainerHeight(this.container, rowHeight);
+        return cx / rTotal;
+    }
+    this._emitRow = function(images, startY) {
+        var rowHeight = this._calculateY(images);
 
         var currentX = 0;
-        for (var i = 0; i < this.images.length; i++) {
-            var currentImage = this.images[i];
+        for (var i = 0; i < images.length; i++) {
+            var currentImage = images[i];
             // r = x / y
             // x = r * y
             var width = (currentImage.width / currentImage.height) * rowHeight;
-            window.pictureflow._positionImage(currentImage, currentX, 0, width, rowHeight);
+            window.pictureflow._positionImage(currentImage, currentX, startY, width, rowHeight);
             window.pictureflow._revealImage(currentImage);
             currentX += width + this.border;
         }
+
+        return rowHeight;
     }
-    this._getRs = function () {
+    this._doFlow = function() {
+        var chunks = chunk(this.images, this.imagesPerRow);
+        var y = 0;
+        for (var i = 0; i < chunks.length; i++) {
+            var currentY = this._emitRow(chunks[i], y);
+            y += currentY + this.border;
+        }
+        window.pictureflow._setContainerHeight(this.container, y);
+    }
+    this._getRs = function (images) {
         var r = [];
-        for (var i = 0; i < this.images.length; i++) {
-            r.push(this.images[i].width / this.images[i].height);
+        for (var i = 0; i < images.length; i++) {
+            r.push(images[i].width / images[i].height);
         }
         return r;
     }
@@ -99,7 +125,8 @@ function pictureflowInstance(window, container, images) {
         pictureflow._initContainer(domElement);
 
         // Todo, make this selector dynamic
-        var images = domElement.getElementsByTagName('img');
+        var domImages = domElement.getElementsByTagName('img');
+        var images = Array.prototype.slice.call(domImages);
 
         let instance = new pictureflowInstance(window, domElement, images);
 
