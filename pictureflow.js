@@ -7,6 +7,7 @@ function abstractRenderer(window, container, images, userOptions) {
     this.initializedImages = 0;
     this.width = 0;
     this.height = 0;
+    this.border = pictureflow._getOption(userOptions, 'border');
     var _t = this;
 
     this.window.onresize = function () {
@@ -42,8 +43,6 @@ function abstractRenderer(window, container, images, userOptions) {
 function pictureflowInstance(window, container, images, userOptions) {
     abstractRenderer.call(this, window, container, images, userOptions);
 
-    // TODO: make this border dynamic
-    this.border = 5;
     this.targetRowHeight = pictureflow._getOption(userOptions, 'justified.targetRowHeight');
     this._isRowValid = pictureflow._getOption(userOptions, 'justified.validRow');
     this.debounceResizeWidth = pictureflow._getOption(userOptions, 'debounceResizeWidth');
@@ -297,7 +296,7 @@ function pictureflowInstance(window, container, images, userOptions) {
         var domElements = pictureflow._getOption(options, 'elementSelector')(container);
         var images = Array.prototype.slice.call(domElements);
 
-        let instance = new pictureflowInstance(window, container, images);
+        let instance = new pictureflowInstance(window, container, images, options);
 
         for (var i = 0; i < images.length; i++) {
             pictureflow._initImage(images[i]);
@@ -342,7 +341,7 @@ function pictureflowInstance(window, container, images, userOptions) {
             return returnElements;
         },
         justified: {
-            targetRowHeight: 600,
+            targetRowHeight: 400,
             validRow: function(targetRowHeight, rowElementCount, currentRowHeight, totalElements) {
                 if (totalElements < 5) {
                     var minRowHeight = targetRowHeight / 4;
