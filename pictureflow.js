@@ -1,6 +1,10 @@
 
 
-function pictureflowInstance(window, container, images) {
+function abstractRenderer(window, container, images) {
+
+}
+
+function pictureflowInstance(window, container, images, userOptions) {
     this.container = container;
     this.images = images;
     this.window = window;
@@ -9,14 +13,13 @@ function pictureflowInstance(window, container, images) {
     this.height = 0;
     // TODO: make this border dynamic
     this.border = 5;
-    // TODO: Replace this with something fancy
-    this.imagesPerRow = 3;
-    // TODO: User defined
-    this.rowHeightTarget = 600;
-    // TODO: User defined
-    this.minRowHeight = this.rowHeightTarget / 4;
-    // TODO: User defined
-    this.maxRowHeight = this.rowHeightTarget * 3;
+    this.targetRowHeight = pictureflow._getOption(userOptions, 'justified.targetRowHeight');
+    this._isRowValid = pictureflow._getOption(userOptions, 'justified.validRow');
+    this.debounceResizeWidth = pictureflow._getOption(userOptions, 'justified.debounceResizeWidth');
+    this.userOptions = userOptions;
+    this.renderedWidth = -1;
+    this.renderedRows = [];
+
     var _t = this;
     this.window.onresize = function () {
         _t._windowResized();
@@ -37,17 +40,6 @@ function pictureflowInstance(window, container, images) {
             this._doFlow();
         }
     }
-    function chunk(arr, len) {
-        var chunks = [],
-        i = 0,
-        n = arr.length;
-
-        while (i < n) {
-            chunks.push(arr.slice(i, i += len));
-        }
-
-        return chunks;
-    }
     this._calculateY = function(images) {
         var cx = this.width - ((images.length - 1) * this.border);
         var r = this._getRs(images);
@@ -66,9 +58,8 @@ function pictureflowInstance(window, container, images) {
             var currentImage = images[i];
             // r = x / y
             // x = r * y
-            var width = (currentImage.naturalWidth / currentImage.naturalHeight) * rowHeight;
+            var width = (pictureflow._getElementWidth(images[i]) / pictureflow._getElementHeight(images[i])) * rowHeight;
             window.pictureflow._positionImage(currentImage, currentX, startY, width, rowHeight);
-            window.pictureflow._revealImage(currentImage);
             currentX += width + this.border;
         }
 
@@ -85,12 +76,7 @@ function pictureflowInstance(window, container, images) {
         return this._calculateY(imageRow);
     }
     this._calculateBadness = function(height) {
-        return Math.pow(Math.abs(height - this.rowHeightTarget), 2);
-    }
-    this._isRowValid = function(ixArray) {
-        var y = this._rowHeight(ixArray);
-
-        return y >= this.minRowHeight && y <= this.maxRowHeight;
+        return Math.pow(Math.abs(height - this.targetRowHeight), 2);
     }
     this._findOptimalRows = function() {
         var totalImages = this.images.length;
@@ -105,14 +91,14 @@ function pictureflowInstance(window, container, images) {
             var currentIx = poppedIx;
             var currentRow = [poppedIx];
             while (currentIx < totalImages && !transitionedToInvalid) {
-                if (this._isRowValid(currentRow)) {
+                var currentHeight = this._rowHeight(currentRow);
+                if (this._isRowValid(this.targetRowHeight, currentRow.length, currentHeight)) {
                     lastValid = true;
                     var rowKey = this._genRowKey(currentRow);
                     breakIx.push({ parent: rowKey, ix: currentIx + 1 });
                     rowMap[parent].children.push(rowKey);
                     // Make sure we didn't already calculate this
                     if (!(rowKey in rowMap)) {
-                        var currentHeight = this._rowHeight(currentRow);
                         rowMap[rowKey] = {
                             key: rowKey,
                             height: currentHeight,
@@ -159,6 +145,7 @@ function pictureflowInstance(window, container, images) {
                 }
             }
         }
+        console.log(bestPathCost);
 
         var bestPath = [];
         var current = rowMap[bestPathEnd];
@@ -184,21 +171,31 @@ function pictureflowInstance(window, container, images) {
         return toReturn;
     }
     this._doFlow = function() {
-        var rows = this._findOptimalRows();
-        console.log(rows);
+        var rows = [];
+        var didSearch = false;
+        if (this.renderedWidth !== -1 && Math.abs(this.renderedWidth - this.width) < this.debounceResizeWidth) {
+            rows = this.renderedRows;
+        } else {
+            rows = this._findOptimalRows();
+            didSearch = true;
+        }
         var chunks = this._explodeRows(rows);
-        //var chunks = chunk(this.images, this.imagesPerRow);
         var y = 0;
         for (var i = 0; i < chunks.length; i++) {
             var currentY = this._emitRow(chunks[i], y);
             y += currentY + this.border;
         }
         window.pictureflow._setContainerHeight(this.container, y);
+        pictureflow._revealContainer(this.container);
+        if (didSearch) {
+            this.renderedWidth = this.width;
+            this.renderedRows = rows;
+        }
     }
     this._getRs = function (images) {
         var r = [];
         for (var i = 0; i < images.length; i++) {
-            r.push(images[i].naturalWidth / images[i].naturalHeight);
+            r.push(pictureflow._getElementWidth(images[i]) / pictureflow._getElementHeight(images[i]));
         }
         return r;
     }
@@ -211,7 +208,6 @@ function pictureflowInstance(window, container, images) {
             }
         }
     }
-    console.log(this);
 }
 
 (function (window) {
@@ -219,47 +215,130 @@ function pictureflowInstance(window, container, images) {
 
     pictureflow._initContainer = function(container) {
         container.style.position = "relative";
+        container.style.display = "none";
     }
 
     pictureflow._initImage = function(imgElement) {
-        imgElement.style.display = "none";
         imgElement.style.position = "absolute";
     }
 
-    pictureflow._revealImage = function(imgElement) {
-        imgElement.style.display = "";
+    pictureflow._revealContainer = function(container) {
+        container.style.display = "";
     }
 
     pictureflow._positionImage = function(imgElement, x, y, width, height) {
-        imgElement.style.top = y;
-        imgElement.style.left = x;
-        imgElement.style.width = width;
-        imgElement.style.height = height;
+        var layoutElment = imgElement;
+        layoutElment.style.top = y;
+        layoutElment.style.left = x;
+        var dimensionElement = imgElement;
+        if (imgElement.tagName === 'PICTURE') {
+            dimensionElement = imgElement.querySelector('img');
+        }
+        dimensionElement.style.width = width;
+        dimensionElement.style.height = height;
+    }
+
+    pictureflow._getElementWidth = function(imgElement) {
+        if (imgElement.tagName === 'PICTURE') {
+            return imgElement.querySelector('img').naturalWidth;
+        } else if (imgElement.tagName === 'VIDEO') {
+            return imgElement.videoWidth;
+        }
+
+        return imgElement.naturalWidth;
+    }
+
+    pictureflow._getElementHeight = function(imgElement) {
+        if (imgElement.tagName === 'PICTURE') {
+            return imgElement.querySelector('img').naturalHeight;
+        } else if (imgElement.tagName === 'VIDEO') {
+            return imgElement.videoHeight;
+        }
+
+        return imgElement.naturalHeight;
     }
 
     pictureflow._setContainerHeight = function(container, height) {
         container.style.height = height;
     }
 
-    pictureflow.init = function(domElement) {
-        pictureflow._initContainer(domElement);
+    pictureflow._getOption = function(userOptions, key) {
+        var currentDefault = pictureflow.defaultOptions;
+        var currentUser = userOptions;
+        var keysplit = key.split(".");
+        for (var i = 0; i < keysplit.length; i++) {
+            var currentKey = keysplit[i];
+            if (currentDefault[currentKey]) {
+                currentDefault = currentDefault[currentKey];
+            } else {
+                console.error("Looking up key that doesn't exist as a default option, did you mess up?");
+            }
+            if (currentUser !== undefined && currentUser !== null) {
+                currentUser = currentUser[currentKey];
+            }
+        }
 
-        // Todo, make this selector dynamic
-        var domImages = domElement.getElementsByTagName('img');
-        var images = Array.prototype.slice.call(domImages);
+        if (currentUser !== undefined && currentUser !== null) {
+            return currentUser;
+        }
 
-        let instance = new pictureflowInstance(window, domElement, images);
+        return currentDefault;
+    }
+
+    pictureflow.init = function(container, options) {
+        pictureflow._initContainer(container);
+
+        var domElements = pictureflow._getOption(options, 'elementSelector')(container);
+        var images = Array.prototype.slice.call(domElements);
+
+        let instance = new pictureflowInstance(window, container, images);
 
         for (var i = 0; i < images.length; i++) {
             pictureflow._initImage(images[i]);
-            images[i].onload = function () {
+            var currentImage = images[i];
+            var loadElement = images[i];
+            if (currentImage.tagName === 'VIDEO') {
+                if (currentImage.readyState >= 1) {
+                    instance._imageInitialized();
+                } else {
+                    currentImage.addEventListener('loadedmetadata', function() {
+                        instance._imageInitialized();
+                    });
+                }
+
+                continue;
+            }
+            if (currentImage.tagName === 'PICTURE') {
+                loadElement = currentImage.querySelector('img');
+            }
+
+            loadElement.onload = function () {
                 instance._imageInitialized();
             };
-            //positionImage(images[i], 0, i * 100, 100, 100);
-            //revealImage(images[i]);
         }
 
-        pictureflow._setContainerHeight(domElement, 100);
+        pictureflow._setContainerHeight(container, 100);
+    }
+
+    pictureflow.defaultOptions = {
+        border: 5,
+        elementSelector: function(container) {
+            return container.getElementsByTagName('img');
+        },
+        justified: {
+            targetRowHeight: 600,
+            validRow: function(targetRowHeight, elementCount, currentRowHeight) {
+                var minRowHeight = targetRowHeight / 4;
+                var maxRowHeight = targetRowHeight * 3;
+
+                if (elementCount !== 1 && currentRowHeight < minRowHeight) {
+                    return false;
+                }
+
+                return currentRowHeight < maxRowHeight;
+            },
+            debounceResizeWidth: 50
+        }
     }
 
     window.pictureflow = pictureflow;
