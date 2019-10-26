@@ -1,26 +1,14 @@
 
 
-function abstractRenderer(window, container, images) {
-
-}
-
-function pictureflowInstance(window, container, images, userOptions) {
+function abstractRenderer(window, container, images, userOptions) {
     this.container = container;
     this.images = images;
     this.window = window;
     this.initializedImages = 0;
     this.width = 0;
     this.height = 0;
-    // TODO: make this border dynamic
-    this.border = 5;
-    this.targetRowHeight = pictureflow._getOption(userOptions, 'justified.targetRowHeight');
-    this._isRowValid = pictureflow._getOption(userOptions, 'justified.validRow');
-    this.debounceResizeWidth = pictureflow._getOption(userOptions, 'justified.debounceResizeWidth');
-    this.userOptions = userOptions;
-    this.renderedWidth = -1;
-    this.renderedRows = [];
-
     var _t = this;
+
     this.window.onresize = function () {
         _t._windowResized();
     }
@@ -40,6 +28,29 @@ function pictureflowInstance(window, container, images, userOptions) {
             this._doFlow();
         }
     }
+    this._imageInitialized = function() {
+        this.initializedImages++;
+        if (this.initializedImages === this.images.length) {
+            for (var i = 0; i < this.images.length; i++) {
+                this._windowResized();
+                this._doFlow();
+            }
+        }
+    }
+}
+
+function pictureflowInstance(window, container, images, userOptions) {
+    abstractRenderer.call(this, window, container, images, userOptions);
+
+    // TODO: make this border dynamic
+    this.border = 5;
+    this.targetRowHeight = pictureflow._getOption(userOptions, 'justified.targetRowHeight');
+    this._isRowValid = pictureflow._getOption(userOptions, 'justified.validRow');
+    this.debounceResizeWidth = pictureflow._getOption(userOptions, 'debounceResizeWidth');
+    this.userOptions = userOptions;
+    this.renderedWidth = -1;
+    this.renderedRows = [];
+
     this._calculateY = function(images) {
         var cx = this.width - ((images.length - 1) * this.border);
         var r = this._getRs(images);
@@ -78,53 +89,58 @@ function pictureflowInstance(window, container, images, userOptions) {
     this._calculateBadness = function(height) {
         return Math.pow(Math.abs(height - this.targetRowHeight), 2);
     }
+    this._genValidChildren = function(rowMap, startIx) {
+        var totalImages = this.images.length;
+        var generatedRows = [];
+        var currentRow = [startIx];
+        var currentIx = startIx;
+        var transitionedToInvalid = false;
+        var lastValid = false;
+        while (currentIx < totalImages && !transitionedToInvalid) {
+            var currentHeight = this._rowHeight(currentRow);
+            if (this._isRowValid(this.targetRowHeight, currentRow.length, currentHeight)) {
+                lastValid = true;
+                var rowKey = this._genRowKey(currentRow);
+                if (!(rowKey in rowMap)) {
+                    rowMap[rowKey] = {
+                        key: rowKey,
+                        height: currentHeight,
+                        badness: this._calculateBadness(currentHeight),
+                        cost: Infinity,
+                        terminal: currentRow[currentRow.length - 1],
+                        bestParent: null
+                    };
+                }
+                var generatedRow = rowMap[rowKey];
+                generatedRows.push(generatedRow);
+            } else {
+                if (lastValid) {
+                    transitionedToInvalid = true;
+                }
+            }
+            currentIx++;
+            currentRow.push(currentIx);
+        }
+        return generatedRows;
+    }
     this._findOptimalRows = function() {
         var totalImages = this.images.length;
-        var rowMap = {"root": {key:"root", height: -1, cost: 0, terminal: false, bestParent: null, children: []}};
-        var breakIx = [{ parent: "root", ix: 0 }];
-        var poppedIx;
-        while (popped = breakIx.pop()) {
-            var poppedIx = popped.ix;
-            var parent = popped.parent;
-            var transitionedToInvalid = false;
-            var lastValid = false;
-            var currentIx = poppedIx;
-            var currentRow = [poppedIx];
-            while (currentIx < totalImages && !transitionedToInvalid) {
-                var currentHeight = this._rowHeight(currentRow);
-                if (this._isRowValid(this.targetRowHeight, currentRow.length, currentHeight)) {
-                    lastValid = true;
-                    var rowKey = this._genRowKey(currentRow);
-                    breakIx.push({ parent: rowKey, ix: currentIx + 1 });
-                    rowMap[parent].children.push(rowKey);
-                    // Make sure we didn't already calculate this
-                    if (!(rowKey in rowMap)) {
-                        rowMap[rowKey] = {
-                            key: rowKey,
-                            height: currentHeight,
-                            badness: this._calculateBadness(currentHeight),
-                            cost: Infinity,
-                            terminal: currentRow[currentRow.length - 1] === totalImages - 1,
-                            bestParent: null,
-                            children: []
-                        };
-                    }
-                } else {
-                    if (lastValid) {
-                        transitionedToInvalid = true;
-                    }
-                }
-                currentIx++;
-                currentRow.push(currentIx);
-            }
-        }
+        var rootElement = { key:"root", height: -1, cost: 0, terminal: -1, bestParent: null };
+        var rowMap = {"root": rootElement };
+        var loops = 0;
 
-        var bfs = [rowMap.root];
+        var bfs = [rootElement];
         var node;
+        var bestPathEnd = null;
+        var bestPathCost = Infinity;
         while (node = bfs.pop()) {
-            for (var i = 0; i < node.children.length; i++) {
-                var currentChild = rowMap[node.children[i]];
-                bfs.push(currentChild);
+            var children = this._genValidChildren(rowMap, node.terminal + 1);
+            for (var i = 0; i < children.length; i++) {
+                loops++;
+                var currentChild = children[i];
+                if (bfs.indexOf(currentChild) === -1) {
+                    bfs.push(currentChild);
+                }
                 if (node.cost + currentChild.badness < currentChild.cost) {
                     currentChild.cost = node.cost + currentChild.badness;
                     currentChild.bestParent = node.key;
@@ -132,20 +148,19 @@ function pictureflowInstance(window, container, images, userOptions) {
             }
         }
 
-        var rows = Object.keys(rowMap);
-        var bestPathEnd = null;
-        var bestPathCost = Infinity;
+        console.log("Loops: " + loops);
 
+        var rows = Object.keys(rowMap);
         for (var i = 0; i < rows.length; i++) {
             var currentRow = rowMap[rows[i]];
-            if (currentRow.terminal) {
+            if (currentRow.terminal === totalImages - 1) {
                 if (currentRow.cost < bestPathCost) {
                     bestPathCost = currentRow.cost;
                     bestPathEnd = currentRow.key;
                 }
             }
         }
-        console.log(bestPathCost);
+        console.log("Best cost: " + bestPathCost);
 
         var bestPath = [];
         var current = rowMap[bestPathEnd];
@@ -170,6 +185,13 @@ function pictureflowInstance(window, container, images, userOptions) {
         }
         return toReturn;
     }
+    this._getRs = function (images) {
+        var r = [];
+        for (var i = 0; i < images.length; i++) {
+            r.push(pictureflow._getElementWidth(images[i]) / pictureflow._getElementHeight(images[i]));
+        }
+        return r;
+    }
     this._doFlow = function() {
         var rows = [];
         var didSearch = false;
@@ -192,26 +214,10 @@ function pictureflowInstance(window, container, images, userOptions) {
             this.renderedRows = rows;
         }
     }
-    this._getRs = function (images) {
-        var r = [];
-        for (var i = 0; i < images.length; i++) {
-            r.push(pictureflow._getElementWidth(images[i]) / pictureflow._getElementHeight(images[i]));
-        }
-        return r;
-    }
-    this._imageInitialized = function() {
-        this.initializedImages++;
-        if (this.initializedImages === this.images.length) {
-            for (var i = 0; i < this.images.length; i++) {
-                this._windowResized();
-                this._doFlow();
-            }
-        }
-    }
 }
 
 (function (window) {
-    var pictureflow = {};
+    var pictureflow = function(){};
 
     pictureflow._initContainer = function(container) {
         container.style.position = "relative";
@@ -313,6 +319,7 @@ function pictureflowInstance(window, container, images, userOptions) {
             }
 
             loadElement.onload = function () {
+                console.log(this);
                 instance._imageInitialized();
             };
         }
@@ -322,22 +329,38 @@ function pictureflowInstance(window, container, images, userOptions) {
 
     pictureflow.defaultOptions = {
         border: 5,
+        debounceResizeWidth: 50,
         elementSelector: function(container) {
-            return container.getElementsByTagName('img');
+            var allSupportedTypes = Array.prototype.slice.call(container.querySelectorAll('img,video,picture'));
+            var returnElements = [];
+            for (var i = 0; i < allSupportedTypes.length; i++) {
+                var currentElement = allSupportedTypes[i];
+                if (!(currentElement.tagName === 'IMG' && currentElement.parentElement.tagName === 'PICTURE')) {
+                    returnElements.push(currentElement);
+                }
+            }
+            return returnElements;
         },
         justified: {
             targetRowHeight: 600,
-            validRow: function(targetRowHeight, elementCount, currentRowHeight) {
-                var minRowHeight = targetRowHeight / 4;
-                var maxRowHeight = targetRowHeight * 3;
+            validRow: function(targetRowHeight, rowElementCount, currentRowHeight, totalElements) {
+                if (totalElements < 5) {
+                    var minRowHeight = targetRowHeight / 4;
+                    var maxRowHeight = targetRowHeight * 3;
+                } else {
+                    var minRowHeight = targetRowHeight * (0.6);
+                    var maxRowHeight = targetRowHeight * 2;
+                }
 
-                if (elementCount !== 1 && currentRowHeight < minRowHeight) {
+                // If it's the only element in the row, and it's still less than the
+                // row height, that means we're some kind of thin horizontal panorama.
+                // We want this to score badly but not be considered invalid.
+                if (rowElementCount !== 1 && currentRowHeight < minRowHeight) {
                     return false;
                 }
 
                 return currentRowHeight < maxRowHeight;
-            },
-            debounceResizeWidth: 50
+            }
         }
     }
 
