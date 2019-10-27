@@ -8,17 +8,24 @@ function abstractRenderer(window, container, images, userOptions) {
     this.width = 0;
     this.height = 0;
     this.border = photoflow._getOption(userOptions, 'border');
+    this.onready = null;
+    this.onresize = null;
+    this.hasRendered = false;
     var _t = this;
 
     this.window.onresize = function () {
-        _t._windowResized();
+        _t.__reflow();
     }
-    this._windowResized = function() {
+    this.__reflow = function() {
+        if (this.initializedImages !== this.images.length) {
+            return;
+        }
+        var oldWidth = this.width;
         var newWidth = this.container.offsetWidth;
         var newHeight = this.container.offsetHeight;
         var widthChanged = false;
 
-        if (this.width !== newWidth) {
+        if (this.width !== newWidth && newWidth !== 0) {
             widthChanged = true;
         }
 
@@ -27,20 +34,34 @@ function abstractRenderer(window, container, images, userOptions) {
 
         if (widthChanged) {
             this._doFlow();
+            if (!this.hasRendered) {
+                this.hasRendered = true;
+                this._ready();
+            }
+            if (oldWidth !== 0) {
+                this._resize();
+            }
         }
     }
     this._imageInitialized = function() {
         this.initializedImages++;
         if (this.initializedImages === this.images.length) {
-            for (var i = 0; i < this.images.length; i++) {
-                this._windowResized();
-                this._doFlow();
-            }
+            this.__reflow();
+        }
+    }
+    this._ready = function() {
+        if (this.onready) {
+            this.onready(this);
+        }
+    }
+    this._resize = function() {
+        if (this.onresize) {
+            this.onresize(this);
         }
     }
 }
 
-function photoflowInstance(window, container, images, userOptions) {
+function justifiedRenderer(window, container, images, userOptions) {
     abstractRenderer.call(this, window, container, images, userOptions);
 
     this.targetRowHeight = photoflow._getOption(userOptions, 'justified.targetRowHeight');
@@ -220,7 +241,8 @@ function photoflowInstance(window, container, images, userOptions) {
 
     photoflow._initContainer = function(container) {
         container.style.position = "relative";
-        container.style.display = "none";
+        container.style.visibility = "none";
+        container.style.height = "0px";
     }
 
     photoflow._initImage = function(imgElement) {
@@ -228,7 +250,7 @@ function photoflowInstance(window, container, images, userOptions) {
     }
 
     photoflow._revealContainer = function(container) {
-        container.style.display = "";
+        container.style.visibility = "";
     }
 
     photoflow._positionImage = function(imgElement, x, y, width, height) {
@@ -296,7 +318,7 @@ function photoflowInstance(window, container, images, userOptions) {
         var domElements = photoflow._getOption(options, 'elementSelector')(container);
         var images = Array.prototype.slice.call(domElements);
 
-        let instance = new photoflowInstance(window, container, images, options);
+        let instance = new justifiedRenderer(window, container, images, options);
 
         for (var i = 0; i < images.length; i++) {
             photoflow._initImage(images[i]);
@@ -321,13 +343,16 @@ function photoflowInstance(window, container, images, userOptions) {
                 instance._imageInitialized();
             } else {
                 loadElement.addEventListener("load", function() {
-                    console.log(this);
                     instance._imageInitialized();
                 });
             }
         }
 
-        photoflow._setContainerHeight(container, 100);
+        window.onload = function() {
+            instance.__reflow();
+        }
+
+        return instance;
     }
 
     photoflow.defaultOptions = {
