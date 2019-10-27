@@ -1,1 +1,1 @@
-PictureFlow is a modern image layout library
+PhotoFlow is a modern image layout library
