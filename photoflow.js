@@ -7,7 +7,7 @@ function abstractRenderer(window, container, images, userOptions) {
     this.initializedImages = 0;
     this.width = 0;
     this.height = 0;
-    this.border = pictureflow._getOption(userOptions, 'border');
+    this.border = photoflow._getOption(userOptions, 'border');
     var _t = this;
 
     this.window.onresize = function () {
@@ -40,12 +40,12 @@ function abstractRenderer(window, container, images, userOptions) {
     }
 }
 
-function pictureflowInstance(window, container, images, userOptions) {
+function photoflowInstance(window, container, images, userOptions) {
     abstractRenderer.call(this, window, container, images, userOptions);
 
-    this.targetRowHeight = pictureflow._getOption(userOptions, 'justified.targetRowHeight');
-    this._isRowValid = pictureflow._getOption(userOptions, 'justified.validRow');
-    this.debounceResizeWidth = pictureflow._getOption(userOptions, 'debounceResizeWidth');
+    this.targetRowHeight = photoflow._getOption(userOptions, 'justified.targetRowHeight');
+    this._isRowValid = photoflow._getOption(userOptions, 'justified.validRow');
+    this.debounceResizeWidth = photoflow._getOption(userOptions, 'debounceResizeWidth');
     this.userOptions = userOptions;
     this.renderedWidth = -1;
     this.renderedRows = [];
@@ -68,8 +68,8 @@ function pictureflowInstance(window, container, images, userOptions) {
             var currentImage = images[i];
             // r = x / y
             // x = r * y
-            var width = (pictureflow._getElementWidth(images[i]) / pictureflow._getElementHeight(images[i])) * rowHeight;
-            window.pictureflow._positionImage(currentImage, currentX, startY, width, rowHeight);
+            var width = (photoflow._getElementWidth(images[i]) / photoflow._getElementHeight(images[i])) * rowHeight;
+            window.photoflow._positionImage(currentImage, currentX, startY, width, rowHeight);
             currentX += width + this.border;
         }
 
@@ -187,7 +187,7 @@ function pictureflowInstance(window, container, images, userOptions) {
     this._getRs = function (images) {
         var r = [];
         for (var i = 0; i < images.length; i++) {
-            r.push(pictureflow._getElementWidth(images[i]) / pictureflow._getElementHeight(images[i]));
+            r.push(photoflow._getElementWidth(images[i]) / photoflow._getElementHeight(images[i]));
         }
         return r;
     }
@@ -206,8 +206,8 @@ function pictureflowInstance(window, container, images, userOptions) {
             var currentY = this._emitRow(chunks[i], y);
             y += currentY + this.border;
         }
-        window.pictureflow._setContainerHeight(this.container, y);
-        pictureflow._revealContainer(this.container);
+        window.photoflow._setContainerHeight(this.container, y);
+        photoflow._revealContainer(this.container);
         if (didSearch) {
             this.renderedWidth = this.width;
             this.renderedRows = rows;
@@ -216,22 +216,22 @@ function pictureflowInstance(window, container, images, userOptions) {
 }
 
 (function (window) {
-    var pictureflow = function(){};
+    var photoflow = function(){};
 
-    pictureflow._initContainer = function(container) {
+    photoflow._initContainer = function(container) {
         container.style.position = "relative";
         container.style.display = "none";
     }
 
-    pictureflow._initImage = function(imgElement) {
+    photoflow._initImage = function(imgElement) {
         imgElement.style.position = "absolute";
     }
 
-    pictureflow._revealContainer = function(container) {
+    photoflow._revealContainer = function(container) {
         container.style.display = "";
     }
 
-    pictureflow._positionImage = function(imgElement, x, y, width, height) {
+    photoflow._positionImage = function(imgElement, x, y, width, height) {
         var layoutElment = imgElement;
         layoutElment.style.top = y;
         layoutElment.style.left = x;
@@ -243,7 +243,7 @@ function pictureflowInstance(window, container, images, userOptions) {
         dimensionElement.style.height = height;
     }
 
-    pictureflow._getElementWidth = function(imgElement) {
+    photoflow._getElementWidth = function(imgElement) {
         if (imgElement.tagName === 'PICTURE') {
             return imgElement.querySelector('img').naturalWidth;
         } else if (imgElement.tagName === 'VIDEO') {
@@ -253,7 +253,7 @@ function pictureflowInstance(window, container, images, userOptions) {
         return imgElement.naturalWidth;
     }
 
-    pictureflow._getElementHeight = function(imgElement) {
+    photoflow._getElementHeight = function(imgElement) {
         if (imgElement.tagName === 'PICTURE') {
             return imgElement.querySelector('img').naturalHeight;
         } else if (imgElement.tagName === 'VIDEO') {
@@ -263,12 +263,12 @@ function pictureflowInstance(window, container, images, userOptions) {
         return imgElement.naturalHeight;
     }
 
-    pictureflow._setContainerHeight = function(container, height) {
+    photoflow._setContainerHeight = function(container, height) {
         container.style.height = height;
     }
 
-    pictureflow._getOption = function(userOptions, key) {
-        var currentDefault = pictureflow.defaultOptions;
+    photoflow._getOption = function(userOptions, key) {
+        var currentDefault = photoflow.defaultOptions;
         var currentUser = userOptions;
         var keysplit = key.split(".");
         for (var i = 0; i < keysplit.length; i++) {
@@ -290,16 +290,16 @@ function pictureflowInstance(window, container, images, userOptions) {
         return currentDefault;
     }
 
-    pictureflow.init = function(container, options) {
-        pictureflow._initContainer(container);
+    photoflow.init = function(container, options) {
+        photoflow._initContainer(container);
 
-        var domElements = pictureflow._getOption(options, 'elementSelector')(container);
+        var domElements = photoflow._getOption(options, 'elementSelector')(container);
         var images = Array.prototype.slice.call(domElements);
 
-        let instance = new pictureflowInstance(window, container, images, options);
+        let instance = new photoflowInstance(window, container, images, options);
 
         for (var i = 0; i < images.length; i++) {
-            pictureflow._initImage(images[i]);
+            photoflow._initImage(images[i]);
             var currentImage = images[i];
             var loadElement = images[i];
             if (currentImage.tagName === 'VIDEO') {
@@ -323,10 +323,10 @@ function pictureflowInstance(window, container, images, userOptions) {
             };
         }
 
-        pictureflow._setContainerHeight(container, 100);
+        photoflow._setContainerHeight(container, 100);
     }
 
-    pictureflow.defaultOptions = {
+    photoflow.defaultOptions = {
         border: 5,
         debounceResizeWidth: 50,
         elementSelector: function(container) {
@@ -363,5 +363,5 @@ function pictureflowInstance(window, container, images, userOptions) {
         }
     }
 
-    window.pictureflow = pictureflow;
+    window.photoflow = photoflow;
 })(window);
