@@ -317,10 +317,14 @@ function photoflowInstance(window, container, images, userOptions) {
                 loadElement = currentImage.querySelector('img');
             }
 
-            loadElement.addEventListener("load", function() {
-                console.log(this);
+            if (loadElement.complete) {
                 instance._imageInitialized();
-            });
+            } else {
+                loadElement.addEventListener("load", function() {
+                    console.log(this);
+                    instance._imageInitialized();
+                });
+            }
         }
 
         photoflow._setContainerHeight(container, 100);
