@@ -1,39 +1,203 @@
+var photoflow = function(){};
 
+photoflow._initContainer = function(container) {
+    container.style.position = "relative";
+    container.style.visibility = "none";
+    container.style.height = "0px";
+}
+
+photoflow._initImage = function(imgElement) {
+    imgElement.style.position = "absolute";
+}
+
+photoflow._revealContainer = function(container) {
+    container.style.visibility = "";
+}
+
+photoflow._positionImage = function(imgElement, x, y, width, height) {
+    var layoutElment = imgElement;
+    layoutElment.style.top = y + "px";
+    layoutElment.style.left = x + "px";
+    var dimensionElement = imgElement;
+    if (imgElement.tagName === 'PICTURE') {
+        dimensionElement = imgElement.querySelector('img');
+    }
+    dimensionElement.style.width = width + "px";
+    dimensionElement.style.height = height + "px";
+}
+
+photoflow._getElementWidth = function(imgElement) {
+    if (imgElement.tagName === 'PICTURE') {
+        return imgElement.querySelector('img').naturalWidth;
+    } else if (imgElement.tagName === 'VIDEO') {
+        return imgElement.videoWidth;
+    }
+
+    return imgElement.naturalWidth;
+}
+
+photoflow._getElementHeight = function(imgElement) {
+    if (imgElement.tagName === 'PICTURE') {
+        return imgElement.querySelector('img').naturalHeight;
+    } else if (imgElement.tagName === 'VIDEO') {
+        return imgElement.videoHeight;
+    }
+
+    return imgElement.naturalHeight;
+}
+
+photoflow._setContainerHeight = function(container, height) {
+    container.style.height = height + "px";
+}
+
+photoflow._getOption = function(userOptions, key) {
+    var currentDefault = photoflow.defaultOptions;
+    var currentUser = userOptions;
+    var keysplit = key.split(".");
+    for (var i = 0; i < keysplit.length; i++) {
+        var currentKey = keysplit[i];
+        if (currentDefault[currentKey] !== undefined) {
+            currentDefault = currentDefault[currentKey];
+        } else {
+            console.error("Looking up key that doesn't exist as a default option, did you mess up?");
+        }
+        if (currentUser !== undefined && currentUser !== null) {
+            currentUser = currentUser[currentKey];
+        }
+    }
+
+    if (currentUser !== undefined && currentUser !== null) {
+        return currentUser;
+    }
+
+    return currentDefault;
+}
+
+photoflow.init = function(container, options) {
+    photoflow._initContainer(container);
+
+    var domElements = photoflow._getOption(options, 'elementSelector')(container);
+    var images = Array.prototype.slice.call(domElements);
+
+    let instance = new justifiedRenderer(window, container, images, options);
+
+    for (var i = 0; i < images.length; i++) {
+        photoflow._initImage(images[i]);
+        var currentImage = images[i];
+        var loadElement = images[i];
+        if (currentImage.tagName === 'VIDEO') {
+            if (currentImage.readyState >= 1) {
+                instance._imageInitialized();
+            } else {
+                currentImage.addEventListener('loadedmetadata', function() {
+                    instance._imageInitialized();
+                });
+            }
+
+            continue;
+        }
+        if (currentImage.tagName === 'PICTURE') {
+            loadElement = currentImage.querySelector('img');
+        }
+
+        if (loadElement.complete) {
+            instance._imageInitialized();
+        } else {
+            loadElement.addEventListener("load", function() {
+                instance._imageInitialized();
+            });
+        }
+    }
+
+    window.onload = function() {
+        instance._reflow();
+    }
+
+    return instance;
+}
+
+photoflow.defaultOptions = {
+    border: 0,
+    margin: 5,
+    debounceResizeWidth: 50,
+    elementSelector: function(container) {
+        var allSupportedTypes = Array.prototype.slice.call(container.querySelectorAll('img,video,picture'));
+        var returnElements = [];
+        for (var i = 0; i < allSupportedTypes.length; i++) {
+            var currentElement = allSupportedTypes[i];
+            if (!(currentElement.tagName === 'IMG' && currentElement.parentElement.tagName === 'PICTURE')) {
+                returnElements.push(currentElement);
+            }
+        }
+        return returnElements;
+    },
+    justified: {
+        targetRowHeight: "40vh",
+        validRow: function(targetRowHeight, rowElementCount, currentRowHeight, totalElements) {
+            if (totalElements < 5) {
+                var minRowHeight = targetRowHeight / 4;
+                var maxRowHeight = targetRowHeight * 3;
+            } else {
+                var minRowHeight = targetRowHeight * (0.6);
+                var maxRowHeight = targetRowHeight * 2;
+            }
+
+            // If it's the only element in the row, and it's still less than the
+            // row height, that means we're some kind of thin horizontal panorama.
+            // We want this to score badly but not be considered invalid.
+            if (rowElementCount !== 1 && currentRowHeight < minRowHeight) {
+                return false;
+            }
+
+            return currentRowHeight < maxRowHeight;
+        }
+    }
+}
+
+window.photoflow = photoflow;
 
 function abstractRenderer(window, container, images, userOptions) {
+    this.userOptions = userOptions;
     this.container = container;
     this.images = images;
     this.window = window;
     this.initializedImages = 0;
     this.width = 0;
     this.height = 0;
-    this.border = photoflow._getOption(userOptions, 'border');
-    this.margin = photoflow._getOption(userOptions, 'margin');
+    this.border = 0;
+    this.margin = 0;
+    this._setVariableSettings();
+    this.debounceResizeWidth = 0;
     this.onready = null;
     this.onresize = null;
     this.hasRendered = false;
     var _t = this;
 
-    this.window.onresize = function () {
-        _t.__reflow();
+    this.window.onresize = function() {
+        _t._reflow();
     }
-    this.__reflow = function() {
+    this._reflow = function() {
         if (this.initializedImages !== this.images.length) {
             return;
         }
+        this._setVariableSettings();
         var oldWidth = this.width;
         var newWidth = this.container.offsetWidth;
         var newHeight = this.container.offsetHeight;
         var widthChanged = false;
+        var heightChanged = false;
 
         if (this.width !== newWidth && newWidth !== 0) {
             widthChanged = true;
+        }
+        if (this.height !== newHeight && newHeight !== 0) {
+            heightChanged = true;
         }
 
         this.width = newWidth;
         this.height = newHeight;
 
-        if (widthChanged) {
+        if (widthChanged || heightChanged) {
             this._doFlow();
             if (!this.hasRendered) {
                 this.hasRendered = true;
@@ -47,7 +211,7 @@ function abstractRenderer(window, container, images, userOptions) {
     this._imageInitialized = function() {
         this.initializedImages++;
         if (this.initializedImages === this.images.length) {
-            this.__reflow();
+            this._reflow();
         }
     }
     this._ready = function() {
@@ -62,15 +226,54 @@ function abstractRenderer(window, container, images, userOptions) {
     }
 }
 
+abstractRenderer.prototype._setVariableSettings = function() {
+    this.border = abstractRenderer.prototype._getDimensionSetting.call(this, 'border');
+    this.margin = abstractRenderer.prototype._getDimensionSetting.call(this, 'margin');
+    this.debounceResizeWidth = abstractRenderer.prototype._getDimensionSetting.call(this, 'debounceResizeWidth');
+}
+
+abstractRenderer.prototype._getDimensionSetting = function(setting) {
+    var dimension = photoflow._getOption(this.userOptions, setting);
+    if (typeof dimension === 'number') {
+        return dimension;
+    }
+
+    if (typeof dimension !== 'string') {
+        console.error("Unsupported dimension type");
+        return 0;
+    }
+
+    // Make sure they didn't just pass a stringified number "123"
+    var stringNumber = parseInt(dimension);
+    if (!isNaN(dimension) && !isNaN(stringNumber)) {
+        return stringNumber;
+    }
+
+    var numVal = parseInt(dimension.slice(0, dimension.length - 2));
+    var unit = dimension.slice(-2);
+
+    if (['px', 'vh', 'vw'].indexOf(unit) === -1 || isNaN(numVal)) {
+        console.error("Unsupported dimension type, use 'px', 'vh' or 'vw'");
+        return 0;
+    }
+
+    if (unit === 'px') {
+        return numVal;
+    } else if (unit === 'vh') {
+        console.log(window.innerHeight * (numVal / 100));
+        return window.innerHeight * (numVal / 100);
+    } else if (unit === 'vw') {
+        return window.innerWidth * (numVal / 100);
+    }
+}
+
 function justifiedRenderer(window, container, images, userOptions) {
     abstractRenderer.call(this, window, container, images, userOptions);
-
-    this.targetRowHeight = photoflow._getOption(userOptions, 'justified.targetRowHeight');
+    this.targetRowHeight = 0;
     this._isRowValid = photoflow._getOption(userOptions, 'justified.validRow');
-    this.debounceResizeWidth = photoflow._getOption(userOptions, 'debounceResizeWidth');
-    this.userOptions = userOptions;
     this.renderedWidth = -1;
     this.renderedRows = [];
+    this._setVariableSettings();
 
     this._calculateY = function(images) {
         var cx = this.width - ((images.length - 1) * this.margin) - (this.border * 2);
@@ -237,162 +440,7 @@ function justifiedRenderer(window, container, images, userOptions) {
     }
 }
 
-(function (window) {
-    var photoflow = function(){};
-
-    photoflow._initContainer = function(container) {
-        container.style.position = "relative";
-        container.style.visibility = "none";
-        container.style.height = "0px";
-    }
-
-    photoflow._initImage = function(imgElement) {
-        imgElement.style.position = "absolute";
-    }
-
-    photoflow._revealContainer = function(container) {
-        container.style.visibility = "";
-    }
-
-    photoflow._positionImage = function(imgElement, x, y, width, height) {
-        var layoutElment = imgElement;
-        layoutElment.style.top = y + "px";
-        layoutElment.style.left = x + "px";
-        var dimensionElement = imgElement;
-        if (imgElement.tagName === 'PICTURE') {
-            dimensionElement = imgElement.querySelector('img');
-        }
-        dimensionElement.style.width = width + "px";
-        dimensionElement.style.height = height + "px";
-    }
-
-    photoflow._getElementWidth = function(imgElement) {
-        if (imgElement.tagName === 'PICTURE') {
-            return imgElement.querySelector('img').naturalWidth;
-        } else if (imgElement.tagName === 'VIDEO') {
-            return imgElement.videoWidth;
-        }
-
-        return imgElement.naturalWidth;
-    }
-
-    photoflow._getElementHeight = function(imgElement) {
-        if (imgElement.tagName === 'PICTURE') {
-            return imgElement.querySelector('img').naturalHeight;
-        } else if (imgElement.tagName === 'VIDEO') {
-            return imgElement.videoHeight;
-        }
-
-        return imgElement.naturalHeight;
-    }
-
-    photoflow._setContainerHeight = function(container, height) {
-        container.style.height = height + "px";
-    }
-
-    photoflow._getOption = function(userOptions, key) {
-        var currentDefault = photoflow.defaultOptions;
-        var currentUser = userOptions;
-        var keysplit = key.split(".");
-        for (var i = 0; i < keysplit.length; i++) {
-            var currentKey = keysplit[i];
-            if (currentDefault[currentKey] !== undefined) {
-                currentDefault = currentDefault[currentKey];
-            } else {
-                console.error("Looking up key that doesn't exist as a default option, did you mess up?");
-            }
-            if (currentUser !== undefined && currentUser !== null) {
-                currentUser = currentUser[currentKey];
-            }
-        }
-
-        if (currentUser !== undefined && currentUser !== null) {
-            return currentUser;
-        }
-
-        return currentDefault;
-    }
-
-    photoflow.init = function(container, options) {
-        photoflow._initContainer(container);
-
-        var domElements = photoflow._getOption(options, 'elementSelector')(container);
-        var images = Array.prototype.slice.call(domElements);
-
-        let instance = new justifiedRenderer(window, container, images, options);
-
-        for (var i = 0; i < images.length; i++) {
-            photoflow._initImage(images[i]);
-            var currentImage = images[i];
-            var loadElement = images[i];
-            if (currentImage.tagName === 'VIDEO') {
-                if (currentImage.readyState >= 1) {
-                    instance._imageInitialized();
-                } else {
-                    currentImage.addEventListener('loadedmetadata', function() {
-                        instance._imageInitialized();
-                    });
-                }
-
-                continue;
-            }
-            if (currentImage.tagName === 'PICTURE') {
-                loadElement = currentImage.querySelector('img');
-            }
-
-            if (loadElement.complete) {
-                instance._imageInitialized();
-            } else {
-                loadElement.addEventListener("load", function() {
-                    instance._imageInitialized();
-                });
-            }
-        }
-
-        window.onload = function() {
-            instance.__reflow();
-        }
-
-        return instance;
-    }
-
-    photoflow.defaultOptions = {
-        border: 0,
-        margin: 5,
-        debounceResizeWidth: 50,
-        elementSelector: function(container) {
-            var allSupportedTypes = Array.prototype.slice.call(container.querySelectorAll('img,video,picture'));
-            var returnElements = [];
-            for (var i = 0; i < allSupportedTypes.length; i++) {
-                var currentElement = allSupportedTypes[i];
-                if (!(currentElement.tagName === 'IMG' && currentElement.parentElement.tagName === 'PICTURE')) {
-                    returnElements.push(currentElement);
-                }
-            }
-            return returnElements;
-        },
-        justified: {
-            targetRowHeight: 400,
-            validRow: function(targetRowHeight, rowElementCount, currentRowHeight, totalElements) {
-                if (totalElements < 5) {
-                    var minRowHeight = targetRowHeight / 4;
-                    var maxRowHeight = targetRowHeight * 3;
-                } else {
-                    var minRowHeight = targetRowHeight * (0.6);
-                    var maxRowHeight = targetRowHeight * 2;
-                }
-
-                // If it's the only element in the row, and it's still less than the
-                // row height, that means we're some kind of thin horizontal panorama.
-                // We want this to score badly but not be considered invalid.
-                if (rowElementCount !== 1 && currentRowHeight < minRowHeight) {
-                    return false;
-                }
-
-                return currentRowHeight < maxRowHeight;
-            }
-        }
-    }
-
-    window.photoflow = photoflow;
-})(window);
+justifiedRenderer.prototype._setVariableSettings = function() {
+    this.targetRowHeight = abstractRenderer.prototype._getDimensionSetting.call(this, 'justified.targetRowHeight');
+    abstractRenderer.prototype._setVariableSettings.call(this);
+}
