@@ -233,14 +233,14 @@ function photoflowInstance(window, container, images, userOptions) {
 
     photoflow._positionImage = function(imgElement, x, y, width, height) {
         var layoutElment = imgElement;
-        layoutElment.style.top = y;
-        layoutElment.style.left = x;
+        layoutElment.style.top = y + "px";
+        layoutElment.style.left = x + "px";
         var dimensionElement = imgElement;
         if (imgElement.tagName === 'PICTURE') {
             dimensionElement = imgElement.querySelector('img');
         }
-        dimensionElement.style.width = width;
-        dimensionElement.style.height = height;
+        dimensionElement.style.width = width + "px";
+        dimensionElement.style.height = height + "px";
     }
 
     photoflow._getElementWidth = function(imgElement) {
@@ -264,7 +264,7 @@ function photoflowInstance(window, container, images, userOptions) {
     }
 
     photoflow._setContainerHeight = function(container, height) {
-        container.style.height = height;
+        container.style.height = height + "px";
     }
 
     photoflow._getOption = function(userOptions, key) {
