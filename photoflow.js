@@ -8,6 +8,7 @@ function abstractRenderer(window, container, images, userOptions) {
     this.width = 0;
     this.height = 0;
     this.border = photoflow._getOption(userOptions, 'border');
+    this.margin = photoflow._getOption(userOptions, 'margin');
     this.onready = null;
     this.onresize = null;
     this.hasRendered = false;
@@ -72,7 +73,7 @@ function justifiedRenderer(window, container, images, userOptions) {
     this.renderedRows = [];
 
     this._calculateY = function(images) {
-        var cx = this.width - ((images.length - 1) * this.border);
+        var cx = this.width - ((images.length - 1) * this.margin) - (this.border * 2);
         var r = this._getRs(images);
         var rTotal = 0;
         for (var i = 0; i < r.length; i++) {
@@ -84,14 +85,14 @@ function justifiedRenderer(window, container, images, userOptions) {
     this._emitRow = function(images, startY) {
         var rowHeight = this._calculateY(images);
 
-        var currentX = 0;
+        var currentX = this.border;
         for (var i = 0; i < images.length; i++) {
             var currentImage = images[i];
             // r = x / y
             // x = r * y
             var width = (photoflow._getElementWidth(images[i]) / photoflow._getElementHeight(images[i])) * rowHeight;
             window.photoflow._positionImage(currentImage, currentX, startY, width, rowHeight);
-            currentX += width + this.border;
+            currentX += width + this.margin;
         }
 
         return rowHeight;
@@ -222,12 +223,12 @@ function justifiedRenderer(window, container, images, userOptions) {
             didSearch = true;
         }
         var chunks = this._explodeRows(rows);
-        var y = 0;
+        var y = this.border;
         for (var i = 0; i < chunks.length; i++) {
             var currentY = this._emitRow(chunks[i], y);
-            y += currentY + this.border;
+            y += currentY + this.margin;
         }
-        window.photoflow._setContainerHeight(this.container, y);
+        window.photoflow._setContainerHeight(this.container, y + this.border);
         photoflow._revealContainer(this.container);
         if (didSearch) {
             this.renderedWidth = this.width;
@@ -295,7 +296,7 @@ function justifiedRenderer(window, container, images, userOptions) {
         var keysplit = key.split(".");
         for (var i = 0; i < keysplit.length; i++) {
             var currentKey = keysplit[i];
-            if (currentDefault[currentKey]) {
+            if (currentDefault[currentKey] !== undefined) {
                 currentDefault = currentDefault[currentKey];
             } else {
                 console.error("Looking up key that doesn't exist as a default option, did you mess up?");
@@ -356,7 +357,8 @@ function justifiedRenderer(window, container, images, userOptions) {
     }
 
     photoflow.defaultOptions = {
-        border: 5,
+        border: 0,
+        margin: 5,
         debounceResizeWidth: 50,
         elementSelector: function(container) {
             var allSupportedTypes = Array.prototype.slice.call(container.querySelectorAll('img,video,picture'));
