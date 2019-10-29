@@ -1,21 +1,20 @@
-import { Photoflow } from './photoflow';
+import { PhotoflowHelpers } from './photoflowHelpers';
+import { PhotoflowOptionsInterface } from './defaultOptions';
 
 export abstract class AbstractRenderer {
-    protected userOptions: any;
+    protected userOptions: PhotoflowOptionsInterface;
     protected container: HTMLElement;
     protected images: HTMLElement[];
     protected initializedImages: number;
     protected width: number;
     protected height: number;
     protected border: number;
-    protected margin: number; // TODO Set 0
-    // TODO
-    //this._setVariableSettings();
+    protected margin: number;
     protected debounceResizeWidth: number;
     protected onready: Function|null;
     protected onresize: Function|null;
     protected hasRendered: Boolean;
-    public constructor(container: any, images: any, userOptions: any) {
+    public constructor(container: HTMLElement, images: HTMLElement[], userOptions: PhotoflowOptionsInterface) {
         this.container = container;
         this.images = images;
         this.userOptions = userOptions;
@@ -32,8 +31,8 @@ export abstract class AbstractRenderer {
         this.onresize = null;
     }
 
-    protected getDimensionSetting(setting: any): number {
-        var dimension = Photoflow._getOption(this.userOptions, setting);
+    protected getDimensionSetting(setting: string): number {
+        var dimension = PhotoflowHelpers.getOption(this.userOptions, setting);
         if (typeof dimension === 'number') {
             return dimension;
         }

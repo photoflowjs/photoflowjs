@@ -1,1 +1,4 @@
 node_modules/
+dist/
+!dist/photoflow.js
+!dist/photoflow.js.map

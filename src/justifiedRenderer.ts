@@ -1,6 +1,20 @@
 
-import { Photoflow } from './photoflow';
+import { PhotoflowHelpers } from './photoflowHelpers';
 import { AbstractRenderer } from './abstractRenderer';
+import { PhotoflowOptionsInterface } from './defaultOptions';
+
+interface DAGMap {
+    [key: string]: DAGNode
+}
+
+interface DAGNode {
+    key: string,
+    height: number,
+    badness: number,
+    cost: number,
+    terminal: number,
+    bestParentKey: string|null
+}
 
 export class JustifiedRenderer extends AbstractRenderer {
     private targetRowHeight: number;
@@ -8,10 +22,10 @@ export class JustifiedRenderer extends AbstractRenderer {
     private renderedWidth: number;
     private renderedRows: string[];
 
-    public constructor(container: any, images: any, userOptions: any) {
+    public constructor(container: HTMLElement, images: HTMLElement[], userOptions: PhotoflowOptionsInterface) {
         super(container, images, userOptions);
         this.targetRowHeight = 0;
-        this.isRowValid = Photoflow._getOption(userOptions, 'justified.validRow');
+        this.isRowValid = PhotoflowHelpers.getOption(userOptions, 'justified.validRow');
         this.renderedWidth = -1;
         this.renderedRows = [];
         this.setVariableSettings();
@@ -33,7 +47,7 @@ export class JustifiedRenderer extends AbstractRenderer {
         return cx / rTotal;
     }
 
-    private emitRow(images: any, startY: any) {
+    private emitRow(images: HTMLElement[], startY: number) {
         var rowHeight = this.calculateY(images);
 
         var currentX = this.border;
@@ -41,19 +55,19 @@ export class JustifiedRenderer extends AbstractRenderer {
             var currentImage = images[i];
             // r = x / y
             // x = r * y
-            var width = (Photoflow._getElementWidth(images[i]) / Photoflow._getElementHeight(images[i])) * rowHeight;
-            Photoflow._positionImage(currentImage, currentX, startY, width, rowHeight);
+            var width = (PhotoflowHelpers.getElementWidth(images[i]) / PhotoflowHelpers.getElementHeight(images[i])) * rowHeight;
+            PhotoflowHelpers.positionImage(currentImage, currentX, startY, width, rowHeight);
             currentX += width + this.margin;
         }
 
         return rowHeight;
     }
 
-    private genRowKey(ixArray: any) {
+    private genRowKey(ixArray: number[]) {
         return ixArray.join(",");
     }
 
-    private rowHeight(ixArray: any) {
+    private rowHeight(ixArray: number[]) {
         var imageRow = [];
         for (var i = 0; i < ixArray.length; i++) {
             imageRow.push(this.images[ixArray[i]]);
@@ -61,11 +75,11 @@ export class JustifiedRenderer extends AbstractRenderer {
         return this.calculateY(imageRow);
     }
 
-    private calculateBadness(height: any) {
+    private calculateBadness(height: number) {
         return Math.pow(Math.abs(height - this.targetRowHeight), 2);
     }
 
-    private genValidChildren(rowMap: any, startIx: any) {
+    private genValidChildren(rowMap: DAGMap, startIx: number) {
         var totalImages = this.images.length;
         var generatedRows = [];
         var currentRow = [startIx];
@@ -84,7 +98,7 @@ export class JustifiedRenderer extends AbstractRenderer {
                         badness: this.calculateBadness(currentHeight),
                         cost: Infinity,
                         terminal: currentRow[currentRow.length - 1],
-                        bestParent: null
+                        bestParentKey: null
                     };
                 }
                 var generatedRow = rowMap[rowKey];
@@ -102,8 +116,8 @@ export class JustifiedRenderer extends AbstractRenderer {
 
     private findOptimalRows() {
         var totalImages = this.images.length;
-        var rootElement = { key:"root", height: -1, cost: 0, terminal: -1, bestParent: null };
-        var rowMap = {"root": rootElement };
+        var rootElement: DAGNode = { key: "root", height: -1, cost: 0, badness: 0, terminal: -1, bestParentKey: null };
+        var rowMap: DAGMap = {"root": rootElement };
         var loops = 0;
 
         var bfs = [rootElement];
@@ -120,7 +134,7 @@ export class JustifiedRenderer extends AbstractRenderer {
                 }
                 if (node.cost + currentChild.badness < currentChild.cost) {
                     currentChild.cost = node.cost + currentChild.badness;
-                    currentChild.bestParent = node.key;
+                    currentChild.bestParentKey = node.key;
                 }
             }
         }
@@ -129,7 +143,7 @@ export class JustifiedRenderer extends AbstractRenderer {
 
         var rows = Object.keys(rowMap);
         for (var i = 0; i < rows.length; i++) {
-            var currentRow = (<any>rowMap)[rows[i]];
+            var currentRow = rowMap[rows[i]];
             if (currentRow.terminal === totalImages - 1) {
                 if (currentRow.cost < bestPathCost) {
                     bestPathCost = currentRow.cost;
@@ -140,18 +154,18 @@ export class JustifiedRenderer extends AbstractRenderer {
         console.log("Best cost: " + bestPathCost);
 
         var bestPath = [];
-        var current = (<any>rowMap)[bestPathEnd];
+        var current = rowMap[<string>bestPathEnd];
         while (current) {
             if (current.key !== "root") {
                 bestPath.push(current.key);
             }
-            current = (<any>rowMap)[current.bestParent];
+            current = rowMap[<string>current.bestParentKey];
         }
 
         return bestPath.reverse();
     }
 
-    private explodeRows(optimalRowKeys: any) {
+    private explodeRows(optimalRowKeys: string[]) {
         var toReturn = [];
         for (var i = 0; i < optimalRowKeys.length; i++) {
             var imageChunk = [];
@@ -164,10 +178,10 @@ export class JustifiedRenderer extends AbstractRenderer {
         return toReturn;
     }
 
-    private getRs(images: any) {
+    private getRs(images: HTMLElement[]) {
         var r = [];
         for (var i = 0; i < images.length; i++) {
-            r.push(Photoflow._getElementWidth(images[i]) / Photoflow._getElementHeight(images[i]));
+            r.push(PhotoflowHelpers.getElementWidth(images[i]) / PhotoflowHelpers.getElementHeight(images[i]));
         }
         return r;
     }
@@ -187,8 +201,8 @@ export class JustifiedRenderer extends AbstractRenderer {
             var currentY = this.emitRow(chunks[i], y);
             y += currentY + this.margin;
         }
-        Photoflow._setContainerHeight(this.container, y + this.border);
-        Photoflow._revealContainer(this.container);
+        PhotoflowHelpers.setContainerHeight(this.container, y + this.border);
+        PhotoflowHelpers.revealContainer(this.container);
         if (didSearch) {
             this.renderedWidth = this.width;
             this.renderedRows = rows;

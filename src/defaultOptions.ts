@@ -1,9 +1,20 @@
 
-var defaultOptions = {
+interface PhotoflowOptionsInterface {
+    border?: number,
+    margin?: number,
+    debounceResizeWidth?: number,
+    elementSelector?: (container: HTMLElement) => void,
+    justified?: {
+        targetRowHeight?: string|number,
+        validRow?: (targetRowHeight: number, rowElementCount: number, currentRowHeight: number, totalElements: number) => boolean
+    }
+}
+
+var defaultOptions: PhotoflowOptionsInterface = {
     border: 0,
     margin: 5,
     debounceResizeWidth: 50,
-    elementSelector: function(container: any) {
+    elementSelector: function(container: HTMLElement) {
         var allSupportedTypes = Array.prototype.slice.call(container.querySelectorAll('img,video,picture'));
         var returnElements = [];
         for (var i = 0; i < allSupportedTypes.length; i++) {
@@ -16,7 +27,7 @@ var defaultOptions = {
     },
     justified: {
         targetRowHeight: "40vh",
-        validRow: function(targetRowHeight: any, rowElementCount: any, currentRowHeight: any, totalElements: any) {
+        validRow: function(targetRowHeight: number, rowElementCount: number, currentRowHeight: number, totalElements: number): boolean {
             if (totalElements < 5) {
                 var minRowHeight = targetRowHeight / 4;
                 var maxRowHeight = targetRowHeight * 3;
@@ -37,4 +48,4 @@ var defaultOptions = {
     }
 };
 
-export { defaultOptions };
+export { defaultOptions, PhotoflowOptionsInterface };
