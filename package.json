@@ -1,0 +1,26 @@
+{
+  "name": "photoflowjs",
+  "version": "0.0.1",
+  "description": "An image layout library",
+  "main": "photoflow.js",
+  "dependencies": {},
+  "devDependencies": {
+    "ts-loader": "^6.2.1",
+    "typescript": "^3.6.4",
+    "webpack": "^4.41.2",
+    "webpack-cli": "^3.3.9"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/photoflowjs/photoflowjs.git"
+  },
+  "author": "Bryan Ehrlich",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/photoflowjs/photoflowjs/issues"
+  },
+  "homepage": "https://github.com/photoflowjs/photoflowjs#readme"
+}
