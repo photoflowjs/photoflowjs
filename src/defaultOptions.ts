@@ -3,7 +3,7 @@ interface PhotoflowOptionsInterface {
     border?: number,
     margin?: number,
     debounceResizeWidth?: number,
-    elementSelector?: (container: HTMLElement) => void,
+    elementSelector?: (container: HTMLElement) => HTMLElement[],
     justified?: {
         targetRowHeight?: string|number,
         validRow?: (targetRowHeight: number, rowElementCount: number, currentRowHeight: number, totalElements: number) => boolean
@@ -14,7 +14,7 @@ var defaultOptions: PhotoflowOptionsInterface = {
     border: 0,
     margin: 5,
     debounceResizeWidth: 50,
-    elementSelector: function(container: HTMLElement) {
+    elementSelector: function(container: HTMLElement): HTMLElement[] {
         var allSupportedTypes = Array.prototype.slice.call(container.querySelectorAll('img,video,picture'));
         var returnElements = [];
         for (var i = 0; i < allSupportedTypes.length; i++) {
@@ -28,6 +28,7 @@ var defaultOptions: PhotoflowOptionsInterface = {
     justified: {
         targetRowHeight: "40vh",
         validRow: function(targetRowHeight: number, rowElementCount: number, currentRowHeight: number, totalElements: number): boolean {
+            // For larger galleries be stricter about what a valid row is, so there are less nodes/edges in the DAG
             if (totalElements < 5) {
                 var minRowHeight = targetRowHeight / 4;
                 var maxRowHeight = targetRowHeight * 3;

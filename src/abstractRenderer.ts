@@ -24,8 +24,8 @@ export abstract class AbstractRenderer {
         this.margin = 0;
         this.initializedImages = 0;
         this.hasRendered = false;
-        this.setVariableSettings();
         this.debounceResizeWidth = 0;
+        this.setVariableSettings();
         this.hasRendered = false;
         this.onready = null;
         this.onresize = null;
@@ -68,6 +68,8 @@ export abstract class AbstractRenderer {
         return 0;
     }
 
+    // These settings can represent a percentage of the screen width/height,
+    // and therefore need to be recalculated when the screen is resized.
     protected setVariableSettings() {
         this.border = this.getDimensionSetting('border');
         this.margin = this.getDimensionSetting('margin');
